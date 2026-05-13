@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Camera stream</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; overflow: hidden; background: #020617; color: #f8fafc; }
+    main { position: relative; height: 100vh; width: 100vw; }
+    video, canvas.preview { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
+    canvas.capture { display: none; }
+    .topbar { position: absolute; top: 0; left: 0; right: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px; }
+    .pill { display: inline-flex; align-items: center; gap: 8px; border: 1px solid rgba(255,255,255,.14); background: rgba(2,6,23,.76); padding: 9px 12px; border-radius: 999px; box-shadow: 0 12px 28px rgba(0,0,0,.25); backdrop-filter: blur(14px); }
+    .dot { width: 10px; height: 10px; border-radius: 999px; background: #f59e0b; }
+    .dot.ok { background: #22c55e; }
+    .dot.err { background: #f43f5e; }
+    button { border: 0; border-radius: 999px; padding: 10px 14px; background: #0ea5e9; color: white; font-weight: 700; box-shadow: 0 12px 28px rgba(0,0,0,.25); }
+    button.secondary { background: rgba(15,23,42,.86); border: 1px solid rgba(255,255,255,.14); }
+    .bottom { position: absolute; left: 14px; right: 14px; bottom: 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .meta { color: #cbd5e1; font-size: 13px; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <main>
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="preview" class="preview hidden"></canvas>
+    <canvas id="capture" class="capture"></canvas>
+
+    <div class="topbar">
+      <div class="pill"><span id="dot" class="dot"></span><span id="status">Starting camera</span></div>
+      <button id="toggle">Economy</button>
+    </div>
+
+    <div class="bottom">
+      <div class="pill meta">Code <strong>__CODE__</strong></div>
+      <button id="restart" class="secondary">Restart</button>
+    </div>
+  </main>
+
+  <script>
+    const code = "__CODE__";
+    const intervalMs = Number("__CAPTURE_INTERVAL_MS__");
+    const maxImageEdge = Number("__MAX_IMAGE_EDGE__");
+
+    const video = document.getElementById("video");
+    const preview = document.getElementById("preview");
+    const previewCtx = preview.getContext("2d");
+    const capture = document.getElementById("capture");
+    const captureCtx = capture.getContext("2d");
+    const statusText = document.getElementById("status");
+    const dot = document.getElementById("dot");
+    const toggle = document.getElementById("toggle");
+    const restart = document.getElementById("restart");
+
+    let mediaStream = null;
+    let timer = null;
+    let sending = false;
+    let economy = false;
+
+    function setStatus(kind, text) {
+      dot.className = "dot" + (kind === "ok" ? " ok" : kind === "err" ? " err" : "");
+      statusText.textContent = text;
+    }
+
+    function targetSize(width, height) {
+      const scale = Math.min(1, maxImageEdge / Math.max(width, height));
+      return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)) };
+    }
+
+    function drawCapture() {
+      const size = targetSize(video.videoWidth, video.videoHeight);
+      capture.width = size.width;
+      capture.height = size.height;
+      captureCtx.drawImage(video, 0, 0, size.width, size.height);
+
+      if (economy) {
+        preview.width = size.width;
+        preview.height = size.height;
+        previewCtx.drawImage(video, 0, 0, size.width, size.height);
+      }
+    }
+
+    async function sendFrame() {
+      if (sending || !mediaStream || video.readyState < HTMLMediaElement.HAVE_ENOUGH_DATA) return;
+      if (!video.videoWidth || !video.videoHeight) return;
+      sending = true;
+      drawCapture();
+      try {
+        const blob = await new Promise(resolve => capture.toBlob(resolve, "image/jpeg", 0.72));
+        const response = await fetch(`/camera/${encodeURIComponent(code)}/frame`, {
+          method: "POST",
+          headers: { "Content-Type": "image/jpeg" },
+          body: blob
+        });
+        if (!response.ok) throw new Error("backend rejected frame");
+        setStatus("ok", "Streaming");
+      } catch (error) {
+        setStatus("err", "Backend unavailable");
+      } finally {
+        sending = false;
+      }
+    }
+
+    async function start() {
+      stop();
+      try {
+        setStatus("wait", "Waiting for camera");
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" } },
+          audio: false
+        });
+        video.srcObject = mediaStream;
+        await video.play();
+        setStatus("ok", "Streaming");
+        timer = window.setInterval(sendFrame, intervalMs);
+        sendFrame();
+      } catch (error) {
+        setStatus("err", "Camera blocked");
+      }
+    }
+
+    function stop() {
+      if (timer) window.clearInterval(timer);
+      timer = null;
+      if (mediaStream) mediaStream.getTracks().forEach(track => track.stop());
+      mediaStream = null;
+      video.srcObject = null;
+    }
+
+    toggle.addEventListener("click", () => {
+      economy = !economy;
+      toggle.textContent = economy ? "Normal" : "Economy";
+      video.classList.toggle("hidden", economy);
+      preview.classList.toggle("hidden", !economy);
+    });
+
+    restart.addEventListener("click", start);
+    window.addEventListener("beforeunload", stop);
+    start();
+  </script>
+</body>
+</html>

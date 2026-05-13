@@ -1,0 +1,22 @@
+[project]
+name = "gdinoonnx"
+version = "0.1.0"
+description = "GroundingDINO ONNX/TensorRT build environment"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "addict",
+    "huggingface-hub",
+    "matplotlib",
+    "numpy",
+    "onnx",
+    "onnxscript",
+    "onnxruntime-gpu",
+    "opencv-python-headless",
+    "pycocotools",
+    "tensorrt",
+    "timm",
+    "torch",
+    "transformers",
+    "yapf",
+]

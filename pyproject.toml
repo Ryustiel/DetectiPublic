@@ -1,0 +1,20 @@
+[project]
+name = "global"
+version = "0.1.0"
+description = "Vision API development workspace"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.135.1",
+    "streamlit",
+    "uvicorn>=0.41.0",
+    "numpy>=2.4.2",
+    "opencv-python-headless>=4.13.0.92",
+    "pandas>=3.0.0",
+    "pillow>=12.1.1",
+    "pyarrow>=23.0.1",
+    "scikit-learn>=1.8.0",
+    "seaborn>=0.13.2",
+    "transformers>=5.1.0",
+    "ultralytics>=8.4.19",
+    "websockets>=16.0",
+]

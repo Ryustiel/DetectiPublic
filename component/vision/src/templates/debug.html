@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vision debug</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f7f8fb;
+      color: #111827;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 24px; border-bottom: 1px solid #e5e7eb; background: #fff; position: sticky; top: 0; z-index: 2; }
+    h1 { margin: 0; font-size: 22px; letter-spacing: 0; }
+    h2 { margin: 0 0 12px; font-size: 16px; letter-spacing: 0; }
+    main { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px; padding: 16px; }
+    section { grid-column: span 6; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; min-width: 0; }
+    section.wide { grid-column: span 12; }
+    label { display: grid; gap: 6px; font-size: 12px; font-weight: 700; color: #4b5563; }
+    input, select, textarea { width: 100%; border: 1px solid #d1d5db; border-radius: 6px; padding: 9px 10px; font: inherit; background: #fff; color: #111827; }
+    textarea { min-height: 82px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px; }
+    button { border: 0; border-radius: 6px; padding: 9px 11px; background: #2563eb; color: #fff; font-weight: 700; cursor: pointer; }
+    button.secondary { background: #e5e7eb; color: #111827; }
+    button.danger { background: #dc2626; }
+    button:disabled { opacity: .55; cursor: not-allowed; }
+    .row { display: flex; align-items: end; gap: 10px; flex-wrap: wrap; }
+    .row > label { flex: 1 1 170px; }
+    .toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .table { display: grid; gap: 8px; }
+    .item { display: grid; grid-template-columns: minmax(180px, 1fr) auto; gap: 12px; align-items: center; border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px; }
+    .muted { color: #6b7280; font-size: 12px; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+    .status { font-size: 12px; border: 1px solid #d1d5db; border-radius: 999px; padding: 4px 8px; background: #f9fafb; }
+    .ok { color: #047857; }
+    .warn { color: #b45309; }
+    pre { overflow: auto; max-height: 360px; margin: 12px 0 0; border-radius: 8px; background: #111827; color: #f9fafb; padding: 12px; font-size: 12px; }
+    img.result { display: block; max-width: 100%; max-height: 520px; margin-top: 12px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f3f4f6; }
+    dialog { width: min(720px, calc(100vw - 28px)); border: 1px solid #d1d5db; border-radius: 8px; padding: 0; }
+    dialog form { padding: 16px; display: grid; gap: 12px; }
+    dialog header { position: static; padding: 14px 16px; }
+    @media (max-width: 900px) { section, section.wide { grid-column: span 12; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Vision debug</h1>
+    <div class="toolbar">
+      <span id="vram" class="status">VRAM unknown</span>
+      <button id="refresh" class="secondary">Refresh</button>
+    </div>
+  </header>
+
+  <main>
+    <section>
+      <h2>Models</h2>
+      <div class="row">
+        <label>Model<select id="modelSelect"></select></label>
+        <button id="loadModel">Load</button>
+        <button id="unloadModel" class="secondary">Unload</button>
+      </div>
+      <div id="models" class="table" style="margin-top:12px"></div>
+    </section>
+
+    <section>
+      <h2>Apply model</h2>
+      <div class="row">
+        <label>Model<select id="applyModel"></select></label>
+        <label>Output<select id="applyOutput"><option value="text">text</option><option value="image">image</option></select></label>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <label>Labels<input id="applyLabels" placeholder="fruit, human"></label>
+        <label>Image URL<input id="applyUrl" placeholder="https://..."></label>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <label>Stream ID<input id="applyStream" placeholder="optional"></label>
+        <label>Frame index<input id="applyIndex" type="number" min="0" placeholder="0"></label>
+        <label>Age ms<input id="applyAge" type="number" min="0" placeholder="500"></label>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <label>Upload<input id="applyFile" type="file" accept="image/*"></label>
+        <button id="runApply">Run</button>
+      </div>
+      <pre id="applyJson"></pre>
+      <img id="applyImage" class="result" alt="">
+    </section>
+
+    <section class="wide">
+      <div class="toolbar" style="justify-content:space-between">
+        <h2>Streams</h2>
+        <div class="toolbar">
+          <button id="newStream">Create stream</button>
+        </div>
+      </div>
+      <div id="streams" class="table"></div>
+      <img id="streamImage" class="result" alt="">
+    </section>
+
+    <section class="wide">
+      <h2>Camera codes</h2>
+      <div class="row">
+        <label>Capture FPS<input id="codeFps" type="number" min="0.05" max="30" step="0.05" value="2"></label>
+        <label>Custom code<input id="codeValue" placeholder="optional"></label>
+        <button id="createCode">Create</button>
+      </div>
+      <div id="codes" class="table" style="margin-top:12px"></div>
+    </section>
+  </main>
+
+  <dialog id="streamDialog">
+    <header><h2>Create stream</h2></header>
+    <form method="dialog" id="streamForm">
+      <div class="row">
+        <label>ID<input id="streamId" required placeholder="demo-stream"></label>
+        <label>Detection model<select id="streamModel"></select></label>
+      </div>
+      <div class="row">
+        <label>Labels<input id="streamLabels" required placeholder="fruit, human"></label>
+        <label>Camera code<input id="streamCode" placeholder="optional"></label>
+      </div>
+      <div class="row">
+        <label>Sensitivity<input id="streamSensitivity" type="number" min="0" max="1" step="0.05" value="0.5"></label>
+        <label>Process every ms<input id="streamEvery" type="number" min="0" step="50" value="0"></label>
+      </div>
+      <label>Stop conditions JSON<textarea id="streamStop">[]</textarea></label>
+      <label>Callback URL<input id="streamCallback" placeholder="optional"></label>
+      <div class="toolbar">
+        <button>Create</button>
+        <button value="cancel" class="secondary">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="queryDialog">
+    <header><h2>Query frame</h2></header>
+    <form method="dialog" id="queryForm">
+      <input id="queryStream" type="hidden">
+      <div class="row">
+        <label>Frame index from latest<input id="queryIndex" type="number" min="0" placeholder="0"></label>
+        <label>Age ms from latest<input id="queryAge" type="number" min="0" placeholder="500"></label>
+      </div>
+      <div class="toolbar">
+        <button id="queryText">Text</button>
+        <button id="queryRaw" class="secondary">Raw image</button>
+        <button value="cancel" class="secondary">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script>
+    const state = { models: [], streams: [], codes: [] };
+    const $ = id => document.getElementById(id);
+
+    async function api(path, options = {}) {
+      const response = await fetch(path, options);
+      const text = await response.text();
+      let body = {};
+      try { body = text ? JSON.parse(text) : {}; } catch (_) { body = { text }; }
+      if (!response.ok) throw body;
+      return body;
+    }
+
+    function setJson(node, value) {
+      node.textContent = JSON.stringify(value, null, 2);
+    }
+
+    function modelLabel(model) {
+      return `${model.id} (${model.kind}${model.loaded ? ", loaded" : ""})`;
+    }
+
+    function fillSelect(select, models) {
+      select.innerHTML = "";
+      models.forEach(model => {
+        const option = document.createElement("option");
+        option.value = model.id;
+        option.textContent = modelLabel(model);
+        select.appendChild(option);
+      });
+    }
+
+    async function refreshModels() {
+      const payload = await api("/api/models/status");
+      state.models = payload.models || [];
+      const vram = payload.vram || {};
+      $("vram").textContent = vram.cuda_available
+        ? `VRAM free ${(vram.free_bytes / 1024 / 1024 / 1024).toFixed(2)} GB`
+        : "CUDA unavailable";
+
+      fillSelect($("modelSelect"), state.models);
+      fillSelect($("applyModel"), state.models);
+      fillSelect($("streamModel"), state.models.filter(model => model.kind === "detection"));
+
+      $("models").innerHTML = "";
+      state.models.forEach(model => {
+        const row = document.createElement("div");
+        row.className = "item";
+        row.innerHTML = `<div><strong>${model.id}</strong><div class="muted">${model.label || model.kind}</div></div><span class="status ${model.loaded ? "ok" : "warn"}">${model.loaded ? "loaded" : "unloaded"}</span>`;
+        $("models").appendChild(row);
+      });
+    }
+
+    async function refreshStreams() {
+      const payload = await api("/api/streams");
+      state.streams = payload.streams || [];
+      $("streams").innerHTML = "";
+      state.streams.forEach(stream => {
+        const row = document.createElement("div");
+        row.className = "item";
+        row.innerHTML = `
+          <div>
+            <strong>${stream.id}</strong>
+            <div class="muted">${stream.status} / ${stream.detection_model} / ${stream.frame_count} images</div>
+            <div class="muted mono">${(stream.labels || []).join(", ")}</div>
+          </div>
+          <div class="toolbar">
+            <button class="secondary" data-action="latest" data-id="${stream.id}">Latest</button>
+            <button class="secondary" data-action="query" data-id="${stream.id}">Query</button>
+            <button class="danger" data-action="delete" data-id="${stream.id}">Delete</button>
+          </div>`;
+        $("streams").appendChild(row);
+      });
+    }
+
+    async function refreshCodes() {
+      const payload = await api("/api/camera-codes");
+      state.codes = payload.codes || [];
+      $("codes").innerHTML = "";
+      state.codes.forEach(code => {
+        const row = document.createElement("div");
+        row.className = "item";
+        row.innerHTML = `
+          <div>
+            <strong>${code.code}</strong>
+            <div class="muted">${code.capture_fps} fps</div>
+            <div class="muted mono">${code.url}</div>
+          </div>
+          <div class="toolbar">
+            <button class="secondary" data-action="copy-code" data-url="${code.url}">Copy</button>
+            <button class="danger" data-action="delete-code" data-code="${code.code}">Delete</button>
+          </div>`;
+        $("codes").appendChild(row);
+      });
+    }
+
+    async function refreshAll() {
+      await refreshModels();
+      await refreshStreams();
+      await refreshCodes();
+    }
+
+    $("refresh").addEventListener("click", refreshAll);
+    $("loadModel").addEventListener("click", async () => {
+      await api(`/api/models/${encodeURIComponent($("modelSelect").value)}/load`, { method: "POST" });
+      await refreshModels();
+    });
+    $("unloadModel").addEventListener("click", async () => {
+      await api(`/api/models/${encodeURIComponent($("modelSelect").value)}/unload`, { method: "POST" });
+      await refreshAll();
+    });
+
+    $("runApply").addEventListener("click", async () => {
+      $("applyImage").removeAttribute("src");
+      const file = $("applyFile").files[0];
+      let payload;
+      if (file) {
+        const form = new FormData();
+        form.append("image", file);
+        form.append("model", $("applyModel").value);
+        form.append("output", $("applyOutput").value);
+        form.append("labels", $("applyLabels").value);
+        payload = await api("/api/apply", { method: "POST", body: form });
+      } else {
+        payload = await api("/api/apply", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: $("applyModel").value,
+            output: $("applyOutput").value,
+            labels: $("applyLabels").value,
+            source_url: $("applyUrl").value || undefined,
+            stream_id: $("applyStream").value || undefined,
+            index: $("applyIndex").value || undefined,
+            age_ms: $("applyAge").value || undefined
+          })
+        });
+      }
+      setJson($("applyJson"), payload);
+      if (payload.image?.url) $("applyImage").src = payload.image.url;
+    });
+
+    $("newStream").addEventListener("click", () => $("streamDialog").showModal());
+    $("streamForm").addEventListener("submit", async event => {
+      event.preventDefault();
+      const stopText = $("streamStop").value.trim() || "[]";
+      await api("/api/streams", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: $("streamId").value,
+          detection_model: $("streamModel").value,
+          labels: $("streamLabels").value.split(",").map(item => item.trim()).filter(Boolean),
+          stream: $("streamCode").value || undefined,
+          sensitivity: Number($("streamSensitivity").value),
+          process_every_ms: Number($("streamEvery").value),
+          stop_conditions: JSON.parse(stopText),
+          callback_url: $("streamCallback").value || undefined
+        })
+      });
+      $("streamDialog").close();
+      await refreshStreams();
+    });
+
+    $("streams").addEventListener("click", async event => {
+      const button = event.target.closest("button");
+      if (!button) return;
+      const id = button.dataset.id;
+      if (button.dataset.action === "delete") {
+        await api(`/api/streams/${encodeURIComponent(id)}`, { method: "DELETE" });
+        await refreshStreams();
+      }
+      if (button.dataset.action === "latest") {
+        const payload = await api(`/api/streams/${encodeURIComponent(id)}/frames/raw?index=0`);
+        $("streamImage").src = payload.image.url;
+      }
+      if (button.dataset.action === "query") {
+        $("queryStream").value = id;
+        $("queryDialog").showModal();
+      }
+    });
+
+    $("queryText").addEventListener("click", async event => {
+      event.preventDefault();
+      const id = $("queryStream").value;
+      const params = new URLSearchParams();
+      if ($("queryIndex").value) params.set("index", $("queryIndex").value);
+      if ($("queryAge").value) params.set("age_ms", $("queryAge").value);
+      const payload = await api(`/api/streams/${encodeURIComponent(id)}/frames/query?${params}`);
+      setJson($("applyJson"), payload);
+      $("queryDialog").close();
+    });
+
+    $("queryRaw").addEventListener("click", async event => {
+      event.preventDefault();
+      const id = $("queryStream").value;
+      const params = new URLSearchParams();
+      if ($("queryIndex").value) params.set("index", $("queryIndex").value);
+      if ($("queryAge").value) params.set("age_ms", $("queryAge").value);
+      const payload = await api(`/api/streams/${encodeURIComponent(id)}/frames/raw?${params}`);
+      $("streamImage").src = payload.image.url;
+      $("queryDialog").close();
+    });
+
+    $("createCode").addEventListener("click", async () => {
+      await api("/api/camera-codes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: $("codeValue").value || undefined,
+          capture_fps: Number($("codeFps").value)
+        })
+      });
+      $("codeValue").value = "";
+      await refreshCodes();
+    });
+
+    $("codes").addEventListener("click", async event => {
+      const button = event.target.closest("button");
+      if (!button) return;
+      if (button.dataset.action === "copy-code") {
+        await navigator.clipboard.writeText(button.dataset.url);
+      }
+      if (button.dataset.action === "delete-code") {
+        await api(`/api/camera-codes/${encodeURIComponent(button.dataset.code)}`, { method: "DELETE" });
+        await refreshCodes();
+      }
+    });
+
+    refreshAll().catch(error => setJson($("applyJson"), error));
+  </script>
+</body>
+</html>

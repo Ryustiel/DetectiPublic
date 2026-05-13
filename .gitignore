@@ -1,0 +1,21 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+uv.lock
+
+# Local environment and runtime data
+environ/*
+!environ/
+!environ/README.md
+!environ/gdinoonnx.env.example
+!environ/tunnel.env.example
+!environ/vision.env.example
+component/vision/assets/
+EXAMPLES/

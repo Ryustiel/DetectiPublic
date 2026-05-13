@@ -1,0 +1,93 @@
+services:
+
+  vision:
+    container_name: detecti-vision
+    tty: true
+    stdin_open: true
+    shm_size: "16gb"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    build:
+      context: ./component/vision
+      dockerfile: Dockerfile
+      args:
+        VISION_EXTRAS: ${VISION_EXTRAS:-}
+    env_file:
+      - path: ./environ/vision.env
+        required: false
+    volumes:
+      - ./component/vision/assets:/app/assets
+      - ./component/vision/src:/app/src
+    command: python /app/src/service.py
+    ports:
+      - "8000:8000"
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      PYTHONUNBUFFERED: "1"
+      HF_HOME: /app/assets/models
+      TOKENIZERS_PARALLELISM: "false"
+      VISION_TEMP_IMAGE_DIR: /app/assets/temp
+      VISION_TEMP_URL_MAX: "20"
+      VISION_TEMP_URL_TTL_SECONDS: "86400"
+      VISION_GENERATED_IMAGE_MAX: "100"
+      VISION_GENERATED_IMAGE_TTL_SECONDS: "86400"
+      VISION_STREAM_FRAME_MAX: "100"
+      VISION_STREAM_FRAME_TTL_SECONDS: "86400"
+      VISION_CAMERA_FRAME_MAX: "100"
+      VISION_CAMERA_FRAME_TTL_SECONDS: "86400"
+      VISION_CAMERA_CODE_INACTIVITY_SECONDS: "600"
+      VISION_MAX_IMAGE_EDGE: "1280"
+      VISION_JPEG_QUALITY: "82"
+      VISION_MAX_DOWNLOAD_BYTES: "15000000"
+      VISION_IMAGE_DOWNLOAD_TIMEOUT_SECONDS: "10"
+      VISION_CALLBACK_TIMEOUT_SECONDS: "5"
+      VISION_DEFAULT_CAMERA_FPS: "2"
+    gpus:
+      - driver: nvidia
+        count: all
+        capabilities: [gpu]
+
+  gdinoonnx:
+    container_name: detecti-gdinoonnx
+    profiles:
+      - model-build
+    tty: true
+    stdin_open: true
+    shm_size: "8gb"
+    command: bash -lc "/app/src/boot.sh && sleep infinity"
+    build:
+      context: ./component/gdinoonnx
+      dockerfile: Dockerfile
+    env_file:
+      - path: ./environ/gdinoonnx.env
+        required: false
+    volumes:
+      - ./component/gdinoonnx/src:/app/src
+      - ./component/vision/assets:/app/assets
+    environment:
+      PYTHONUNBUFFERED: "1"
+      HF_HOME: /app/assets/models
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+    gpus:
+      - driver: nvidia
+        count: all
+        capabilities: [gpu]
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: detecti-tunnel
+    profiles:
+      - tunnel
+    restart: unless-stopped
+    command: tunnel run
+    env_file:
+      - ./environ/tunnel.env
+    depends_on:
+      - vision

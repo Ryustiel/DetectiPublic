@@ -1,0 +1,18 @@
+# Files checked out from the upstream wrapper repository.
+.gitattributes
+LICENSE
+README.md
+api_inference_server.py
+config.ini
+engine_inference.py
+export_engine.py
+export_onnx.py
+get_caption_mask.py
+onnx_inference.py
+pt_inference.py
+requirements.txt
+send.py
+setup.py
+groundingdino
+utils
+images/in/car_1.jpg
