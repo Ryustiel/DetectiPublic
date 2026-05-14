@@ -1,0 +1,55 @@
+%%{init: {"theme": "base", "flowchart": {"htmlLabels": true, "curve": "basis", "nodeSpacing": 56, "rankSpacing": 80}, "themeVariables": {"fontFamily": "Inter, Segoe UI, Arial, sans-serif", "background": "#ffffff", "primaryColor": "#eef6ff", "primaryBorderColor": "#4f7cac", "primaryTextColor": "#102033", "lineColor": "#64748b", "clusterBkg": "#fbfcfe", "clusterBorder": "#cbd5e1"}}}%%
+flowchart TB
+    title["Schema 1 - Runtime Overview"]
+
+    subgraph callers["Clients and entry points"]
+        direction LR
+        debug["Browser debug UI<br/><span style='font-size:12px'>GET /</span>"]
+        apps["External apps / scripts<br/><span style='font-size:12px'>curl, integrations, agents</span>"]
+        camera_page["Camera capture page<br/><span style='font-size:12px'>GET /{code}</span>"]
+    end
+
+    api["Vision API service<br/><span style='font-size:12px'>FastAPI on port 8000</span>"]
+
+    subgraph routes["Main HTTP surfaces"]
+        direction LR
+        models["Model lifecycle<br/><span style='font-size:12px'>/api/models<br/>/api/models/status<br/>load / unload</span>"]
+        streams["Detection streams<br/><span style='font-size:12px'>/api/streams<br/>WS events</span>"]
+        apply["Apply inference<br/><span style='font-size:12px'>/api/apply</span>"]
+        camera["Camera codes<br/><span style='font-size:12px'>/api/camera-codes<br/>/camera/{code}/frame</span>"]
+        temp["Temporary media<br/><span style='font-size:12px'>/tmp/{token}</span>"]
+    end
+
+    subgraph runtime["Shared runtime state and workers"]
+        direction LR
+        state["In-memory state<br/><span style='font-size:10px'>STREAMS<br/>CAMERA_CODES<br/>TEMP_URLS<br/>GENERATED_IMAGES</span>"]
+        backends["Model backends<br/><span style='font-size:12px'>detection and depth engines</span>"]
+    end
+
+    title ~~~ callers
+    debug --> api
+    apps --> api
+    camera_page --> api
+    api --> models
+    api --> streams
+    api --> apply
+    api --> camera
+    api --> temp
+
+    models --> backends
+    streams --> state
+    apply --> backends
+    apply --> state
+    camera --> state
+    camera --> streams
+    temp --> state
+
+    classDef header fill:#ffffff,stroke:#ffffff,color:#102033,font-size:20px,font-weight:bold;
+    classDef client fill:#f8fafc,stroke:#94a3b8,color:#0f172a,stroke-width:1.2px;
+    classDef api fill:#f6f0ff,stroke:#7c5cc4,color:#24123f,stroke-width:1.2px;
+    classDef runtime fill:#eef7f0,stroke:#4d8f67,color:#10291a,stroke-width:1.2px;
+
+    class title header;
+    class debug,apps,camera_page client;
+    class api,models,streams,apply,camera,temp api;
+    class state,backends runtime;

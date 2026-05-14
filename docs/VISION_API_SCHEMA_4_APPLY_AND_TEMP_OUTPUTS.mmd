@@ -1,0 +1,66 @@
+%%{init: {"theme": "base", "flowchart": {"htmlLabels": true, "curve": "basis", "nodeSpacing": 54, "rankSpacing": 78}, "themeVariables": {"fontFamily": "Inter, Segoe UI, Arial, sans-serif", "background": "#ffffff", "primaryColor": "#eef6ff", "primaryBorderColor": "#4f7cac", "primaryTextColor": "#102033", "lineColor": "#64748b", "clusterBkg": "#fbfcfe", "clusterBorder": "#cbd5e1"}}}%%
+flowchart TB
+    title["Schema 4 - Apply Endpoint and Temporary Outputs"]
+
+    subgraph source["Select a source image"]
+        direction LR
+        apply["POST /api/apply<br/><span style='font-size:12px'>JSON or multipart/form-data</span>"]
+        upload["Upload image<br/><span style='font-size:12px'>image or file field</span>"]
+        url["source_url<br/><span style='font-size:12px'>http/https download, size-limited</span>"]
+        stream["stream_id + index/age/frame_id<br/><span style='font-size:12px'>uses retained stream frames</span>"]
+        camera["camera_code + index/age/frame_id<br/><span style='font-size:12px'>uses retained camera frames</span>"]
+        image["image_from_apply_payload()<br/><span style='font-size:12px'>returns a normalized RGB image</span>"]
+        apply --> upload --> image
+        apply --> url --> image
+        apply --> stream --> image
+        apply --> camera --> image
+    end
+
+    subgraph model["Normalize and load the model"]
+        direction LR
+        normalize["Normalize model id<br/><span style='font-size:12px'>detect detection or depth backend</span>"]
+        loaded["Model must already be loaded<br/><span style='font-size:12px'>otherwise HTTP 409</span>"]
+        branch{"Model kind?"}
+        normalize --> loaded --> branch
+    end
+
+    subgraph detection["Detection branch"]
+        direction LR
+        labels["labels required<br/><span style='font-size:12px'>label, labels, or keywords</span>"]
+        detect["predict_objects(...)\n<span style='font-size:12px'>object detection on the selected image</span>"]
+        output{"output mode?"}
+        text["Text result<br/><span style='font-size:12px'>structured detection summary</span>"]
+        annotated["draw_detections()<br/><span style='font-size:12px'>register_generated_image()</span>"]
+        labels --> detect --> output
+        output --> text
+        output --> annotated
+    end
+
+    subgraph depth["Depth branch"]
+        direction LR
+        depth_predict["predict_depth_map(...)\n<span style='font-size:12px'>only image output is supported</span>"]
+        depth_image["depth_map_to_image()<br/><span style='font-size:12px'>register_generated_image()</span>"]
+        depth_predict --> depth_image
+    end
+
+    subgraph temp["Temporary media serving"]
+        direction LR
+        token["/tmp/{token}<br/><span style='font-size:12px'>FileResponse image/jpeg</span>"]
+    end
+
+    title ~~~ source
+    image --> normalize
+    branch --> labels
+    branch --> depth_predict
+    annotated --> token
+    depth_image --> token
+
+    classDef header fill:#ffffff,stroke:#ffffff,color:#102033,font-size:20px,font-weight:bold;
+    classDef client fill:#f8fafc,stroke:#94a3b8,color:#0f172a,stroke-width:1.2px;
+    classDef api fill:#f6f0ff,stroke:#7c5cc4,color:#24123f,stroke-width:1.2px;
+    classDef runtime fill:#eef7f0,stroke:#4d8f67,color:#10291a,stroke-width:1.2px;
+    classDef output fill:#fff7ed,stroke:#c4712c,color:#5b3410,stroke-width:1.2px;
+
+    class title header;
+    class apply,upload,url,stream,camera,image,normalize,loaded,branch,labels,detect,output,depth_predict client;
+    class text,annotated,depth_image,token output;

@@ -1,0 +1,50 @@
+%%{init: {"theme": "base", "flowchart": {"htmlLabels": true, "curve": "basis", "nodeSpacing": 56, "rankSpacing": 80}, "themeVariables": {"fontFamily": "Inter, Segoe UI, Arial, sans-serif", "background": "#ffffff", "primaryColor": "#eef6ff", "primaryBorderColor": "#4f7cac", "primaryTextColor": "#102033", "lineColor": "#64748b", "clusterBkg": "#fbfcfe", "clusterBorder": "#cbd5e1"}}}%%
+flowchart TB
+    title["Schema 3 - Camera Code Capture"]
+
+    subgraph lifecycle["Create and keep the camera code alive"]
+        direction LR
+        create["POST /api/camera-codes<br/><span style='font-size:12px'>optional custom code and capture_fps</span>"]
+        camera_state["CameraCodeState<br/><span style='font-size:12px'>code, capture_fps, last_seen_at</span>"]
+        page["GET /{code}<br/><span style='font-size:12px'>served only on camera or local host</span>"]
+        cleanup["cleanup_inactive_codes()<br/><span style='font-size:12px'>expires idle codes and removes frames</span>"]
+        create --> camera_state --> page
+        camera_state --> cleanup
+    end
+
+    subgraph browser["Browser capture loop"]
+        direction LR
+        html["camera.html<br/><span style='font-size:12px'>getUserMedia + capture timer</span>"]
+        post["POST /camera/{code}/frame<br/><span style='font-size:12px'>JPEG body from the browser</span>"]
+        browser_frames["Retained camera frames<br/><span style='font-size:12px'>CameraFrameRecord + pruning</span>"]
+        html --> post --> browser_frames
+    end
+
+    subgraph relay["Relay to attached streams"]
+        direction LR
+        attached["Active streams for the code<br/><span style='font-size:12px'>stream.source_code == code<br/>and stream.status == active</span>"]
+        ingest["ingest_frame_for_stream(...)\n<span style='font-size:12px'>same image is processed by each stream</span>"]
+        stream_events["Stream events and callbacks<br/><span style='font-size:12px'>detection or stop payloads</span>"]
+        browser_frames --> attached --> ingest --> stream_events
+    end
+
+    subgraph readback["Readback and management"]
+        direction LR
+        query["GET /api/camera-codes/{code}/frames/query<br/>/raw<br/>/{sequence}/query<br/>/{sequence}/raw"]
+        delete["DELETE /api/camera-codes/{code}<br/><span style='font-size:12px'>explicit cleanup path</span>"]
+    end
+
+    title ~~~ lifecycle
+    browser_frames --> query
+    camera_state --> delete
+
+    classDef header fill:#ffffff,stroke:#ffffff,color:#102033,font-size:20px,font-weight:bold;
+    classDef client fill:#f8fafc,stroke:#94a3b8,color:#0f172a,stroke-width:1.2px;
+    classDef api fill:#f6f0ff,stroke:#7c5cc4,color:#24123f,stroke-width:1.2px;
+    classDef runtime fill:#eef7f0,stroke:#4d8f67,color:#10291a,stroke-width:1.2px;
+    classDef event fill:#fff7ed,stroke:#c4712c,color:#5b3410,stroke-width:1.2px;
+
+    class title header;
+    class create,html,post,attached,ingest,query,delete client;
+    class camera_state,page,cleanup,browser_frames api;
+    class stream_events event;

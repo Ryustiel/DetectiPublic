@@ -1,0 +1,54 @@
+%%{init: {"theme": "base", "flowchart": {"htmlLabels": true, "curve": "basis", "nodeSpacing": 36, "rankSpacing": 48}, "themeVariables": {"fontFamily": "Inter, Segoe UI, Arial, sans-serif", "background": "#ffffff", "primaryColor": "#eef6ff", "primaryBorderColor": "#4f7cac", "primaryTextColor": "#102033", "lineColor": "#64748b", "clusterBkg": "#fbfcfe", "clusterBorder": "#cbd5e1"}}}%%
+flowchart LR
+    title["Schema 2 - Detection Stream Lifecycle"]
+
+    subgraph creation["Create and configure a stream"]
+        direction LR
+        create["POST /api/streams<br/><span style='font-size:12px'>or PATCH /api/streams/{id}</span>"]
+        validate["Resolve detection model<br/><span style='font-size:12px'>must exist and be loaded</span>"]
+        stream_state["Store StreamState<br/><span style='font-size:12px'>labels, sensitivity, max_objects,<br/>stop conditions, callback URL,<br/>optional source_code</span>"]
+        create --> validate --> stream_state
+    end
+
+    subgraph ingest["Ingest and detect frames"]
+        direction LR
+        inputs["Frame input paths<br/><span style='font-size:12px'>/api/streams/{id}/frames<br/>/api/streams/{id}/url<br/>camera relay when source_code matches</span>"]
+        gate["STATE_LOCK<br/><span style='font-size:12px'>active stream, model still loaded,<br/>process_every_ms throttle</span>"]
+        infer["MODEL_LOCK<br/><span style='font-size:12px'>predict_objects(...)</span>"]
+        retain["Save JPEG and retain frame<br/><span style='font-size:12px'>append FrameRecord, prune old frames</span>"]
+        evaluate["Evaluate stop conditions<br/><span style='font-size:12px'>first_detection / consecutive_detection</span>"]
+        response["Return JSON<br/><span style='font-size:12px'>stream + frame reference + detection text</span>"]
+        inputs --> gate --> infer --> retain --> evaluate --> response
+    end
+
+    delivery_title["Events, callbacks, and readback"]
+    event["Publish event payload<br/><span style='font-size:12px'>detection or stream_stopped</span>"]
+    ws["WebSocket subscribers<br/><span style='font-size:12px'>/api/streams/events<br/>/api/streams/{id}/events</span>"]
+    callback["POST callback_url<br/><span style='font-size:12px'>only when configured</span>"]
+    query["Read retained frames<br/><span style='font-size:12px'>/query, /raw,<br/>/{sequence}/query, /{sequence}/raw</span>"]
+    temp["Temporary image URLs<br/><span style='font-size:12px'>/tmp/{token}</span>"]
+
+    title ~~~ creation
+    stream_state --> inputs
+    retain --> event
+    event --> ws
+    event --> callback
+    retain --> query
+    query --> temp
+    retain ~~~ event
+    retain ~~~ query
+    delivery_title ~~~ event
+    retain ~~~ delivery_title
+    delivery_title ~~~ query
+
+    classDef header fill:#ffffff,stroke:#ffffff,color:#102033,font-size:20px,font-weight:bold;
+    classDef client fill:#f8fafc,stroke:#94a3b8,color:#0f172a,stroke-width:1.2px;
+    classDef api fill:#f6f0ff,stroke:#7c5cc4,color:#24123f,stroke-width:1.2px;
+    classDef runtime fill:#eef7f0,stroke:#4d8f67,color:#10291a,stroke-width:1.2px;
+    classDef event fill:#fff7ed,stroke:#c4712c,color:#5b3410,stroke-width:1.2px;
+
+    class title header;
+    class create,validate,inputs,gate,infer,retain,evaluate,response client;
+    class stream_state,query,temp api;
+    class event,ws,callback event;
+    class delivery_title header;

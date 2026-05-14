@@ -130,6 +130,13 @@ Useful routes:
 - `GET /api/camera-codes/{code}/frames/query`
 - `GET /api/camera-codes/{code}/frames/raw`
 
+## Communication Schemas
+
+The Vision API diagrams live in
+[`docs/VISION/VISION_API_COMMUNICATION_SCHEMA.md`](./docs/VISION/VISION_API_COMMUNICATION_SCHEMA.md).
+They link the Mermaid sources with SVG and PNG renders for the runtime, stream,
+camera, and `apply` flows.
+
 ---
 
 ## GroundingDINO TensorRT Builder
